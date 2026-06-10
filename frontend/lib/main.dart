@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'features/auth/screens/login.dart';
+import 'features/auth/screens/onboarding_screen.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
 final ValueNotifier<Color> primaryColorNotifier = ValueNotifier(const Color(0xFF007BFF));
@@ -52,7 +52,7 @@ class MyApp extends StatelessWidget {
                 ),
                 colorScheme: ColorScheme.dark(primary: color),
               ),
-              home: const LoginScreen(), 
+              home: const OnboardingScreen(), 
             );
           },
         );

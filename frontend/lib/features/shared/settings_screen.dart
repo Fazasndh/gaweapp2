@@ -33,14 +33,6 @@ class SettingsScreen extends StatelessWidget {
           icon: Icon(Icons.arrow_back, color: theme.iconTheme.color),
           onPressed: () => Navigator.pop(context),
         ),
-        actions: [
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 20),
-              child: Text("Link", style: TextStyle(color: theme.textTheme.bodyLarge?.color, fontSize: 16)),
-            ),
-          )
-        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),

@@ -3,12 +3,16 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  // IP Localhost (Hanya berfungsi untuk testing di Chrome/Web atau Emulator)
   // Ganti ke IP Jaringan (misal: 192.168.1.5) jika testing di HP Fisik.
-  static const String baseUrl = 'http://127.0.0.1:8000/api';
+static const String baseUrl = 'http://192.168.18.32:8000/api';
 
   /// Mendaftarkan pengguna baru ke database Laravel.
-  Future<bool> register(String name, String email, String password, String role) async {
+  Future<bool> register(
+    String name,
+    String email,
+    String password,
+    String role,
+  ) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/register'),
@@ -20,7 +24,7 @@ class ApiService {
           'name': name,
           'email': email,
           'password': password,
-          'password_confirmation': password, 
+          'password_confirmation': password,
           'role': role,
         }),
       );
@@ -47,10 +51,7 @@ class ApiService {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          'email': email,
-          'password': password,
-        }),
+        body: jsonEncode({'email': email, 'password': password}),
       );
 
       if (response.statusCode == 200) {
@@ -87,7 +88,7 @@ class ApiService {
 
       if (token == null) {
         print('LOG [Fetch Jobs]: Token tidak ditemukan. Akses ditolak.');
-        return []; 
+        return [];
       }
 
       final response = await http.get(
@@ -100,7 +101,7 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
-        return responseData['data'] ?? []; 
+        return responseData['data'] ?? [];
       } else {
         print('LOG [Fetch Jobs]: Gagal. HTTP ${response.statusCode}');
         return [];
@@ -112,7 +113,13 @@ class ApiService {
   }
 
   /// Mengirim data lowongan baru ke server (Hanya untuk role Company)
-  Future<bool> postJob(String title, String location, String description, String salaryRange, String jobType) async {
+  Future<bool> postJob(
+    String title,
+    String location,
+    String description,
+    String salaryRange,
+    String jobType,
+  ) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final String? token = prefs.getString('auth_token');
@@ -123,21 +130,23 @@ class ApiService {
         return false;
       }
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/jobs'), 
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'title': title,
-          'location': location,
-          'description': description,
-          'salary_range': salaryRange,
-          'job_type': jobType,
-        }),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/jobs'),
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              'title': title,
+              'location': location,
+              'description': description,
+              'salary_range': salaryRange,
+              'job_type': jobType,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       // Evaluasi response secara absolut
       if (response.statusCode == 201 || response.statusCode == 200) {
@@ -163,13 +172,15 @@ class ApiService {
 
       if (token == null) return [];
 
-      final response = await http.get(
-        Uri.parse('$baseUrl/my-jobs'),
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/my-jobs'),
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
@@ -192,13 +203,15 @@ class ApiService {
 
       if (token == null) return false;
 
-      final response = await http.delete(
-        Uri.parse('$baseUrl/jobs/$jobId'),
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/jobs/$jobId'),
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         print('LOG [Delete Job]: ID $jobId berhasil dihapus.');
@@ -221,15 +234,17 @@ class ApiService {
 
       if (token == null) return false;
 
-      final response = await http.put(
-        Uri.parse('$baseUrl/jobs/$jobId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode(jobData),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/jobs/$jobId'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(jobData),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         print('LOG [Update Job]: Sukses memperbarui ID $jobId.');
@@ -250,18 +265,20 @@ class ApiService {
     try {
       final prefs = await SharedPreferences.getInstance();
       final String? token = prefs.getString('auth_token');
-      
+
       if (token != null) {
-        await http.post(
-          Uri.parse('$baseUrl/logout'),
-          headers: {
-            'Accept': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-        ).timeout(const Duration(seconds: 5)); 
+        await http
+            .post(
+              Uri.parse('$baseUrl/logout'),
+              headers: {
+                'Accept': 'application/json',
+                'Authorization': 'Bearer $token',
+              },
+            )
+            .timeout(const Duration(seconds: 5));
       }
-      
-      await prefs.clear(); 
+
+      await prefs.clear();
       print('LOG [Logout]: Sukses membersihkan sesi lokal.');
       return true;
     } catch (e) {
@@ -272,6 +289,7 @@ class ApiService {
       return true;
     }
   }
+
   /// Mengambil data profil lengkap (User + SeekerProfile)
   Future<Map<String, dynamic>?> getSeekerProfile() async {
     try {
@@ -282,13 +300,15 @@ class ApiService {
         print('LOG [Get Profile]: Token kosong.');
         return null;
       }
-      final response = await http.get(
-        Uri.parse('$baseUrl/profile'),
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(const Duration(seconds: 10)); 
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/profile'),
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
@@ -301,6 +321,200 @@ class ApiService {
     } catch (e) {
       print('LOG [Get Profile Exception]: $e');
       return null;
+    }
+  }
+
+  //Apply job
+  Future<Map<String, dynamic>> applyJob(int jobId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/jobs/$jobId/apply'),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      final responseData = json.decode(response.body);
+      responseData['statusCode'] = response.statusCode;
+
+      return responseData;
+    } catch (e) {
+      throw Exception('Gagal menghubungi server: $e');
+    }
+  }
+
+  //Fungsi Toggle Save Job
+  Future<Map<String, dynamic>> toggleSaveJob(int jobId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/jobs/$jobId/save'),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      final responseData = json.decode(response.body);
+      responseData['statusCode'] = response.statusCode;
+      return responseData;
+    } catch (e) {
+      throw Exception('Gagal menghubungi server: $e');
+    }
+  }
+
+  //Ambil Statistik Dashboard
+  Future<Map<String, dynamic>?> getDashboardStats() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/seeker/dashboard/stats'),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['data'];
+      }
+      return null;
+    } catch (e) {
+      print("Error fetch dashboard stats: $e");
+      return null;
+    }
+  }
+
+  Future<List<dynamic>?> getAppliedJobs() async {
+    final response = await _authorizedGet('$baseUrl/seeker/applied-jobs');
+    return response != null ? List<dynamic>.from(response['data']) : [];
+  }
+
+  Future<List<dynamic>?> getSavedJobs() async {
+    final response = await _authorizedGet('$baseUrl/seeker/saved-jobs');
+    return response != null ? List<dynamic>.from(response['data']) : [];
+  }
+
+  Future<Map<String, dynamic>?> _authorizedGet(String url) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    return response.statusCode == 200 ? json.decode(response.body) : null;
+  }
+  
+  // 1. Mengambil daftar notifikasi menggunakan helper lu
+  Future<List<dynamic>> getNotifications() async {
+    final response = await _authorizedGet('$baseUrl/seeker/notifications');
+    return response != null && response['data'] != null
+        ? List<dynamic>.from(response['data'])
+        : [];
+  }
+
+  // 2. Menandai notifikasi sebagai sudah dibaca (Method PUT)
+  Future<bool> markNotificationAsRead(int notificationId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      final response = await http.put(
+        Uri.parse('$baseUrl/seeker/notifications/$notificationId/read'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+  
+  //ambil data pelamar
+  Future<List<dynamic>> getCompanyApplicants() async {
+    final response = await _authorizedGet('$baseUrl/company/applicants');
+    return response != null && response['data'] != null 
+        ? List<dynamic>.from(response['data']) 
+        : [];
+  }
+  
+  Future<bool> updateApplicantStatus(int applicationId, String status) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token'); // Mengikuti key lu
+      
+      final response = await http.put(
+        Uri.parse('$baseUrl/company/applicants/$applicationId/status'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: json.encode({'status': status}),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // === FUNGSI HEADER YANG HILANG (DITAMBAHKAN DI SINI) ===
+  Future<Map<String, String>> _getHeaders() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token') ?? '';
+    
+    return {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+  }
+
+  // Mengambil Profil Perusahaan
+  Future<Map<String, dynamic>?> getCompanyProfile() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/company/profile'),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        print("Gagal fetch profile: Status ${response.statusCode}");
+      }
+    } catch (e) {
+      print("Error fetching profile: $e");
+    }
+    return null;
+  }
+
+  // Mengupdate Profil Perusahaan
+  Future<bool> updateCompanyProfile(Map<String, String> profileData) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/company/profile/update'),
+        headers: await _getHeaders(),
+        body: jsonEncode(profileData), // Pastikan API Laravel lu menerima JSON
+      );
+
+      // Cek jika status sukses (200 atau 201)
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      print("Error updating profile: $e");
+      return false;
     }
   }
 }

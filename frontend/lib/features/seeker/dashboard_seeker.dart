@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:gawe_app/main.dart'; 
+import 'package:gawe_app/main.dart';
 import 'package:gawe_app/features/seeker/job_listing_screen.dart';
 import 'package:gawe_app/features/seeker/job_detail_screen.dart';
-import 'package:gawe_app/features/seeker/find_job_screen.dart';
-import 'package:gawe_app/features/shared/notifications_screen.dart';
+import 'package:gawe_app/features/seeker/notifications_screen.dart';
 import 'package:gawe_app/features/shared/profile_screen.dart';
 import 'package:gawe_app/features/shared/settings_screen.dart';
 import 'package:gawe_app/features/shared/messages_screen.dart';
+import 'package:gawe_app/features/seeker/SavedAndAppliedScreen.dart';
+import 'package:gawe_app/features/auth/screens/login.dart'; 
 import 'package:shared_preferences/shared_preferences.dart';
 import '/services/api_service.dart';
 
@@ -23,23 +24,38 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isLoadingJobs = true;
   final ApiService _apiService = ApiService();
 
+  // STATE BARU UNTUK STATISTIK
+  int _appliedCount = 0;
+  int _savedCount = 0;
+
   @override
   void initState() {
     super.initState();
     _initializeData();
   }
 
+  // MENGGABUNGKAN PROSES LOADING AGAR EFISIEN
   Future<void> _initializeData() async {
     final prefs = await SharedPreferences.getInstance();
     String storedName = prefs.getString('user_name') ?? 'Seeker';
-    List<dynamic> jobsFromApi = await _apiService.fetchJobs();
 
-    if (mounted) {
-      setState(() {
-        _userName = storedName;
-        _recentJobs = jobsFromApi;
-        _isLoadingJobs = false;
-      });
+    try {
+      // Tarik pekerjaan dan statistik secara berurutan
+      List<dynamic> jobsFromApi = await _apiService.fetchJobs();
+      Map<String, dynamic>? stats = await _apiService.getDashboardStats();
+
+      if (mounted) {
+        setState(() {
+          _userName = storedName;
+          _recentJobs = jobsFromApi;
+          _appliedCount = stats?['total_applied'] ?? 0;
+          _savedCount = stats?['total_saved'] ?? 0;
+          _isLoadingJobs = false;
+        });
+      }
+    } catch (e) {
+      print("LOG Error Initialize Dashboard: $e");
+      if (mounted) setState(() => _isLoadingJobs = false);
     }
   }
 
@@ -50,8 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      // DRAWER SUDAH DIBERSIHKAN SESUAI PERMINTAAN
-      drawer: _buildDrawer(context), 
+      drawer: _buildDrawer(context),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -64,20 +79,29 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         actions: [
-          // NOTIFIKASI DIPINDAHKAN KE APPBAR
           IconButton(
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NotificationsScreen())), 
-            icon: Icon(Icons.notifications_outlined, color: theme.iconTheme.color)
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const NotificationScreen(),
+              ),
+            ),
+            icon: Icon(
+              Icons.notifications_outlined,
+              color: theme.iconTheme.color,
+            ),
           ),
           IconButton(
-            onPressed: () => _showColorPalette(context), 
-            icon: Icon(Icons.palette_outlined, color: theme.iconTheme.color)
+            onPressed: () => _showColorPalette(context),
+            icon: Icon(Icons.palette_outlined, color: theme.iconTheme.color),
           ),
           IconButton(
             onPressed: () {
-              themeNotifier.value = themeNotifier.value == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
-            }, 
-            icon: Icon(Icons.dark_mode_outlined, color: theme.iconTheme.color)
+              themeNotifier.value = themeNotifier.value == ThemeMode.light
+                  ? ThemeMode.dark
+                  : ThemeMode.light;
+            },
+            icon: Icon(Icons.dark_mode_outlined, color: theme.iconTheme.color),
           ),
           const SizedBox(width: 10),
         ],
@@ -89,28 +113,57 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             _buildHeader(context),
             const SizedBox(height: 25),
-            
-            // FIND JOB DIMASUKKAN KE DASHBOARD SEBAGAI SEARCH BAR
+
             GestureDetector(
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const FindJobScreen())),
+              onTap: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        const JobListingScreen(title: "Search Jobs"),
+                  ),
+                );
+                _initializeData(); // Refresh setelah kembali
+              },
               child: _buildSearchBar(context),
             ),
-            
+
             const SizedBox(height: 25),
-            _buildPromoBanner(primaryColor), 
+            _buildPromoBanner(primaryColor),
             const SizedBox(height: 20),
+
+            // KOTAK STATISTIK YANG SUDAH DINAMIS
             _buildStatsGrid(context),
+
             const SizedBox(height: 30),
 
-            _buildSectionHeader("Job Categories", context, () => Navigator.push(context, MaterialPageRoute(builder: (context) => const FindJobScreen()))),
+            // HEADER CATEGORIES (Tanpa tombol More)
+            Text(
+              "Job Categories",
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
+              ),
+            ),
             const SizedBox(height: 15),
             _buildCategoryList(),
 
             const SizedBox(height: 30),
-            // RECENT JOBS MENAMPILKAN SEMUA DATA DARI LARAVEL
-            _buildSectionHeader("Recent Jobs", context, () => Navigator.push(context, MaterialPageRoute(builder: (context) => const JobListingScreen(title: "All Jobs")))),
+
+            // HEADER RECENT JOBS DENGAN ASYNC AWAIT REFRESH
+            _buildSectionHeader("Recent Jobs", context, () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      const JobListingScreen(title: "All Jobs"),
+                ),
+              );
+              _initializeData(); // Refresh setelah kembali
+            }),
             const SizedBox(height: 15),
-            _buildRecentJobList(context), 
+            _buildRecentJobList(context),
           ],
         ),
       ),
@@ -119,12 +172,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showColorPalette(BuildContext context) {
     final List<Map<String, dynamic>> colors = [
-      {'name': 'Red', 'color': Colors.red}, {'name': 'Green', 'color': Colors.green},
-      {'name': 'Blue', 'color': Colors.blue}, {'name': 'Pink', 'color': Colors.pink},
-      {'name': 'Yellow', 'color': Colors.yellow.shade700}, {'name': 'Orange', 'color': Colors.orange},
-      {'name': 'Purple', 'color': Colors.purple}, {'name': 'Deeppurple', 'color': Colors.deepPurple},
-      {'name': 'Lightblue', 'color': Colors.lightBlue}, {'name': 'Teal', 'color': Colors.teal},
-      {'name': 'Lime', 'color': Colors.lime.shade700}, {'name': 'Deeporange', 'color': Colors.deepOrange},
+      {'name': 'Red', 'color': Colors.red},
+      {'name': 'Green', 'color': Colors.green},
+      {'name': 'Blue', 'color': Colors.blue},
+      {'name': 'Pink', 'color': Colors.pink},
+      {'name': 'Yellow', 'color': Colors.yellow.shade700},
+      {'name': 'Orange', 'color': Colors.orange},
+      {'name': 'Purple', 'color': Colors.purple},
+      {'name': 'Deeppurple', 'color': Colors.deepPurple},
+      {'name': 'Lightblue', 'color': Colors.lightBlue},
+      {'name': 'Teal', 'color': Colors.teal},
+      {'name': 'Lime', 'color': Colors.lime.shade700},
+      {'name': 'Deeporange', 'color': Colors.deepOrange},
     ];
 
     showModalBottomSheet(
@@ -134,18 +193,30 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (context) {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
-          decoration: BoxDecoration(color: Theme.of(context).scaffoldBackgroundColor, borderRadius: const BorderRadius.vertical(top: Radius.circular(24))),
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.grey.shade600, borderRadius: BorderRadius.circular(10))),
+              Container(
+                width: 40,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade600,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
               const SizedBox(height: 30),
               Wrap(
-                spacing: 25, runSpacing: 25, alignment: WrapAlignment.center,
+                spacing: 25,
+                runSpacing: 25,
+                alignment: WrapAlignment.center,
                 children: colors.map((colorData) {
                   final Color itemColor = colorData['color'];
                   return ValueListenableBuilder<Color>(
-                    valueListenable: primaryColorNotifier, 
+                    valueListenable: primaryColorNotifier,
                     builder: (context, currentColor, _) {
                       bool isSelected = currentColor.value == itemColor.value;
                       return GestureDetector(
@@ -154,26 +225,45 @@ class _HomeScreenState extends State<HomeScreen> {
                           Navigator.pop(context);
                         },
                         child: SizedBox(
-                          width: 70, 
+                          width: 70,
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Container(
-                                width: 55, height: 55,
-                                decoration: BoxDecoration(color: itemColor, borderRadius: BorderRadius.circular(14)),
-                                child: isSelected ? const Icon(Icons.check, color: Colors.white, size: 30) : null,
+                                width: 55,
+                                height: 55,
+                                decoration: BoxDecoration(
+                                  color: itemColor,
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: isSelected
+                                    ? const Icon(
+                                        Icons.check,
+                                        color: Colors.white,
+                                        size: 30,
+                                      )
+                                    : null,
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                colorData['name'], textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: Theme.of(context).textTheme.bodyLarge?.color),
+                                colorData['name'],
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  color: Theme.of(
+                                    context,
+                                  ).textTheme.bodyLarge?.color,
+                                ),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
                         ),
                       );
-                    }
+                    },
                   );
                 }).toList(),
               ),
@@ -185,10 +275,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // --- DRAWER YANG SUDAH DIPANGKAS ---
   Widget _buildDrawer(BuildContext context) {
     return Drawer(
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.horizontal(right: Radius.circular(30))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(30)),
+      ),
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       child: SafeArea(
         child: Column(
@@ -200,7 +291,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.only(right: 15, top: 10),
                 child: GestureDetector(
                   onTap: () => Navigator.pop(context),
-                  child: const CircleAvatar(radius: 16, backgroundColor: Color(0xFF333333), child: Icon(Icons.close, color: Colors.white, size: 18)),
+                  child: const CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Color(0xFF333333),
+                    child: Icon(Icons.close, color: Colors.white, size: 18),
+                  ),
                 ),
               ),
             ),
@@ -210,11 +305,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: Theme.of(context).primaryColor, borderRadius: BorderRadius.circular(12)),
-                    child: const Icon(Icons.work, color: Colors.white, size: 28),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).primaryColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.work,
+                      color: Colors.white,
+                      size: 28,
+                    ),
                   ),
                   const SizedBox(width: 15),
-                  Text('Gawee', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)),
+                  Text(
+                    'Gawee',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).primaryColor,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -222,27 +331,85 @@ class _HomeScreenState extends State<HomeScreen> {
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
-                  _buildDrawerItem(Icons.home, "Home", true, context, () => Navigator.pop(context)),
+                  _buildDrawerItem(
+                    Icons.home,
+                    "Home",
+                    true,
+                    context,
+                    () => Navigator.pop(context),
+                  ),
                   _buildDrawerItem(Icons.person, "Profile", false, context, () {
                     Navigator.pop(context);
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ProfileScreen()));
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProfileScreen(),
+                      ),
+                    );
                   }),
                   _buildDrawerItem(Icons.mail, "Messages", false, context, () {
                     Navigator.pop(context);
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const MessagesScreen()));
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const MessagesScreen(),
+                      ),
+                    );
                   }),
-                  _buildDrawerItem(Icons.settings, "Settings", false, context, () {
-                    Navigator.pop(context);
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen()));
-                  }),
+                  _buildDrawerItem(
+                    Icons.settings,
+                    "Settings",
+                    false,
+                    context,
+                    () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const SettingsScreen(),
+                        ),
+                      );
+                    },
+                  ),
                   const SizedBox(height: 20),
-                  _buildDrawerItem(Icons.logout, "Logout", false, context, () async {
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.clear();
-                    if (context.mounted) {
-                      Navigator.popUntil(context, (route) => route.isFirst);
-                    }
-                  }),
+                  // LOGIKA LOGOUT BARU
+                  _buildDrawerItem(
+                    Icons.logout,
+                    "Logout",
+                    false,
+                    context,
+                    () async {
+                      // Tutup drawer terlebih dahulu
+                      Navigator.pop(context);
+                      
+                      // Tampilkan dialog loading
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) => const Center(child: CircularProgressIndicator()),
+                      );
+
+                      // Proses penghapusan token
+                      final success = await _apiService.logout();
+
+                      if (context.mounted) {
+                        Navigator.pop(context); // Tutup dialog loading
+
+                        if (success) {
+                          // Navigasi absolut ke layar Login
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(builder: (context) => const LoginScreen()),
+                            (Route<dynamic> route) => false,
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Gagal logout. Periksa koneksi internet Anda.')),
+                          );
+                        }
+                      }
+                    },
+                  ),
                 ],
               ),
             ),
@@ -251,34 +418,77 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Gawee Job Portal", style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(
+                    "Gawee Job Portal",
+                    style: TextStyle(
+                      color: Colors.grey.shade500,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
                   const SizedBox(height: 5),
-                  Text("App Version 1.3", style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+                  Text(
+                    "App Version 1.3",
+                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                  ),
                 ],
               ),
-            )
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDrawerItem(IconData icon, String title, bool isSelected, BuildContext context, VoidCallback onTap) {
-    final iconTextColor = isSelected ? Theme.of(context).primaryColor : Colors.grey.shade400;
-    final bgColor = isSelected ? Theme.of(context).primaryColor.withOpacity(0.08) : Colors.transparent;
+  Widget _buildDrawerItem(
+    IconData icon,
+    String title,
+    bool isSelected,
+    BuildContext context,
+    VoidCallback onTap,
+  ) {
+    final iconTextColor = isSelected
+        ? Theme.of(context).primaryColor
+        : Colors.grey.shade400;
+    final bgColor = isSelected
+        ? Theme.of(context).primaryColor.withOpacity(0.08)
+        : Colors.transparent;
 
     return InkWell(
       onTap: onTap,
       child: Container(
         margin: const EdgeInsets.only(bottom: 5, right: 25),
-        decoration: BoxDecoration(color: bgColor, borderRadius: const BorderRadius.horizontal(right: Radius.circular(20))),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: const BorderRadius.horizontal(
+            right: Radius.circular(20),
+          ),
+        ),
         child: Row(
           children: [
-            Container(width: 4, height: 35, decoration: BoxDecoration(color: isSelected ? Theme.of(context).primaryColor : Colors.transparent, borderRadius: const BorderRadius.horizontal(right: Radius.circular(4)))),
+            Container(
+              width: 4,
+              height: 35,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Theme.of(context).primaryColor
+                    : Colors.transparent,
+                borderRadius: const BorderRadius.horizontal(
+                  right: Radius.circular(4),
+                ),
+              ),
+            ),
             const SizedBox(width: 25),
             Icon(icon, color: iconTextColor, size: 24),
             const SizedBox(width: 20),
-            Text(title, style: TextStyle(color: iconTextColor, fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500, fontSize: 16)),
+            Text(
+              title,
+              style: TextStyle(
+                color: iconTextColor,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                fontSize: 16,
+              ),
+            ),
           ],
         ),
       ),
@@ -290,7 +500,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_userName != 'Loading...' && _userName.isNotEmpty) {
       List<String> nameParts = _userName.trim().split(' ');
       if (nameParts.length > 1) {
-        initials = nameParts[0][0].toUpperCase() + nameParts[1][0].toUpperCase();
+        initials =
+            nameParts[0][0].toUpperCase() + nameParts[1][0].toUpperCase();
       } else {
         initials = nameParts[0][0].toUpperCase();
       }
@@ -302,15 +513,35 @@ class _HomeScreenState extends State<HomeScreen> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Hello", style: TextStyle(fontSize: 18, color: Theme.of(context).textTheme.bodyMedium?.color)),
-            Text(_userName, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
+            Text(
+              "Hello",
+              style: TextStyle(
+                fontSize: 18,
+                color: Theme.of(context).textTheme.bodyMedium?.color,
+              ),
+            ),
+            Text(
+              _userName,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
+              ),
+            ),
           ],
         ),
         CircleAvatar(
-          radius: 26, 
+          radius: 26,
           backgroundColor: Theme.of(context).primaryColor.withOpacity(0.2),
-          child: Text(initials, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)),
-        )
+          child: Text(
+            initials,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).primaryColor,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -318,12 +549,24 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSearchBar(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
-      decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.withOpacity(0.2))),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+      ),
       child: Row(
         children: [
-          Icon(Icons.search, color: Theme.of(context).textTheme.bodyMedium?.color),
+          Icon(
+            Icons.search,
+            color: Theme.of(context).textTheme.bodyMedium?.color,
+          ),
           const SizedBox(width: 10),
-          Text("Find job by category or title...", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
+          Text(
+            "Find job by category or title...",
+            style: TextStyle(
+              color: Theme.of(context).textTheme.bodyMedium?.color,
+            ),
+          ),
         ],
       ),
     );
@@ -332,33 +575,95 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildPromoBanner(Color primaryColor) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: primaryColor, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: primaryColor.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8))]),
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: primaryColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
-            flex: 2,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: const [
-                Text("Recommended Jobs", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(
+                  "Recommended Jobs",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 SizedBox(height: 8),
-                Text("See our recommendations job for you based your skills", style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
+                Text(
+                  "See our recommendations job for you based your skills",
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
               ],
             ),
           ),
-          const Expanded(flex: 1, child: Icon(Icons.computer, size: 60, color: Colors.white38)),
+          const SizedBox(width: 20),
+          const Icon(Icons.computer, size: 70, color: Colors.white38),
         ],
       ),
     );
   }
 
   Widget _buildStatsGrid(BuildContext context) {
+    if (_isLoadingJobs) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return Row(
       children: [
-        _buildStatCard("0", "Jobs Applied", context),
+        // TOMBOL NAVIGASI APPLY
+        Expanded(
+          child: GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    const SavedAndAppliedScreen(initialIndex: 0),
+              ),
+            ),
+            child: _buildStatCard(
+              _appliedCount.toString(),
+              "Jobs Applied",
+              context,
+            ),
+          ),
+        ),
         const SizedBox(width: 15),
-        _buildStatCard("0", "Saved Jobs", context),
+        // TOMBOL NAVIGASI SAVED
+        Expanded(
+          child: GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    const SavedAndAppliedScreen(initialIndex: 1),
+              ),
+            ),
+            child: _buildStatCard(
+              _savedCount.toString(),
+              "Saved Jobs",
+              context,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -367,25 +672,62 @@ class _HomeScreenState extends State<HomeScreen> {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.withOpacity(0.1))),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.withOpacity(0.1)),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(count, style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
+            Text(
+              count,
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.w900,
+                color: Theme.of(context).textTheme.bodyLarge?.color,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(label, style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 14)),
+            Text(
+              label,
+              style: TextStyle(
+                color: Theme.of(context).textTheme.bodyMedium?.color,
+                fontSize: 14,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSectionHeader(String title, BuildContext context, VoidCallback onTapMore) {
+  Widget _buildSectionHeader(
+    String title,
+    BuildContext context,
+    VoidCallback onTapMore,
+  ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Theme.of(context).textTheme.bodyLarge?.color)),
-        InkWell(onTap: onTapMore, child: Text("More", style: TextStyle(color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold))),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).textTheme.bodyLarge?.color,
+          ),
+        ),
+        InkWell(
+          onTap: onTapMore,
+          child: Text(
+            "More",
+            style: TextStyle(
+              color: Theme.of(context).primaryColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -407,8 +749,17 @@ class _HomeScreenState extends State<HomeScreen> {
             margin: const EdgeInsets.only(right: 12),
             padding: const EdgeInsets.symmetric(horizontal: 25),
             alignment: Alignment.center,
-            decoration: BoxDecoration(color: categories[index]["color"] as Color, borderRadius: BorderRadius.circular(12)),
-            child: Text(categories[index]["name"] as String, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            decoration: BoxDecoration(
+              color: categories[index]["color"] as Color,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              categories[index]["name"] as String,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           );
         },
       ),
@@ -424,7 +775,12 @@ class _HomeScreenState extends State<HomeScreen> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
-          child: Text("Belum ada lowongan tersedia dari server MySQL.", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color)),
+          child: Text(
+            "Belum ada lowongan tersedia dari server MySQL.",
+            style: TextStyle(
+              color: Theme.of(context).textTheme.bodyMedium?.color,
+            ),
+          ),
         ),
       );
     }
@@ -436,32 +792,78 @@ class _HomeScreenState extends State<HomeScreen> {
       itemBuilder: (context, index) {
         final job = _recentJobs[index];
         return GestureDetector(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => JobDetailScreen(job: job))),
+          // DAFTAR PEKERJAAN DENGAN ASYNC AWAIT REFRESH
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => JobDetailScreen(job: job),
+              ),
+            );
+            _initializeData(); // Refresh setelah kembali dari detail lowongan
+          },
           child: Container(
             margin: const EdgeInsets.only(bottom: 15),
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.withOpacity(0.15))),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.withOpacity(0.15)),
+            ),
             child: Row(
               children: [
                 Container(
-                  width: 55, height: 55, 
-                  decoration: BoxDecoration(color: Theme.of(context).primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(14)), 
-                  child: Icon(Icons.work, color: Theme.of(context).primaryColor, size: 28)
+                  width: 55,
+                  height: 55,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.work,
+                    color: Theme.of(context).primaryColor,
+                    size: 28,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(job['title'] ?? 'Posisi Tidak Diketahui', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).textTheme.bodyLarge?.color)),
+                      Text(
+                        job['title'] ?? 'Posisi Tidak Diketahui',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text("${job['user']?['name'] ?? job['company_name'] ?? 'Perusahaan'} - ${job['location'] ?? 'Lokasi'}", style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color, fontSize: 13, fontWeight: FontWeight.w500)),
+                      Text(
+                        "${job['user']?['name'] ?? job['company_name'] ?? 'Perusahaan'} - ${job['location'] ?? 'Lokasi'}",
+                        style: TextStyle(
+                          color: Theme.of(context).textTheme.bodyMedium?.color,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                       const SizedBox(height: 6),
-                      Text(job['salary_range'] ?? '-', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Theme.of(context).primaryColor)),
+                      Text(
+                        job['salary_range'] ?? '-',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      ),
                     ],
                   ),
                 ),
-                Icon(Icons.arrow_forward_ios, color: Colors.grey.shade400, size: 16),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.grey.shade400,
+                  size: 16,
+                ),
               ],
             ),
           ),

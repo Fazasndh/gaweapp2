@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Application;
+use App\Models\JobApplication; 
 use Illuminate\Http\Request;
 
 class ApplicationController extends Controller
@@ -13,13 +13,13 @@ class ApplicationController extends Controller
 
         if ($user->role === 'company') {
             // HRD hanya melihat lamaran yang masuk ke lowongan miliknya sendiri
-            $applications = Application::with(['user', 'job'])
+            $applications = JobApplication::with(['user', 'job'])
                 ->whereHas('job', function ($query) use ($user) {
                     $query->where('user_id', $user->id);
                 })->get();
         } else {
             // Pelamar hanya melihat riwayat lamarannya sendiri
-            $applications = Application::with('job')
+            $applications = JobApplication::with('job')
                 ->where('user_id', $user->id)
                 ->get();
         }
@@ -45,7 +45,7 @@ class ApplicationController extends Controller
         $jobId = $request->job_id;
 
         // 3. Proteksi Anti-Spam: Cek apakah user ini sudah melamar lowongan ini sebelumnya
-        $existingApplication = Application::where('user_id', $userId)
+        $existingApplication = JobApplication::where('user_id', $userId)
             ->where('job_id', $jobId)
             ->first();
 
@@ -56,7 +56,7 @@ class ApplicationController extends Controller
         }
 
         // 4. Eksekusi: Simpan data lamaran
-        $application = Application::create([
+        $application = JobApplication::create([
             'job_id' => $jobId,
             'user_id' => $userId,
             'status' => 'pending'
@@ -79,7 +79,7 @@ class ApplicationController extends Controller
             'status' => 'required|in:pending,reviewed,accepted,rejected'
         ]);
 
-        $application = Application::find($id);
+        $application = JobApplication::find($id);
         if (!$application) {
             return response()->json(['message' => 'Application not found'], 404);
         }

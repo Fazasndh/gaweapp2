@@ -4,19 +4,43 @@ namespace App\Http\Controllers;
 
 use App\Models\Job;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log; // WAJIB ADA UNTUK MENCATAT ERROR
+use Illuminate\Support\Facades\Log; 
 
 class JobController extends Controller
 {
-    // Tampil SEMUA Lowongan (Untuk Seeker)
-    public function index()
+    // Tampil SEMUA Lowongan (Untuk Seeker) 
+    public function index(Request $request)
     {
         try {
+            // 1. Tarik SEMUA lowongan
             $jobs = Job::with('user:id,name')->latest()->get(); 
+
+            // 2. Ambil ID user yang sedang login
+            $userId = $request->user()?->id;
+
+            if ($userId) {
+                // 3. Tarik daftar ID pekerjaan 
+                // Hasilnya berupa array angka, contoh: [1, 5, 12]
+                $savedJobIds = \App\Models\SavedJob::where('user_id', $userId)
+                                                   ->pluck('job_id')
+                                                   ->toArray();
+
+                $jobs->map(function ($job) use ($savedJobIds) {
+                    $job->is_saved = in_array($job->id, $savedJobIds);
+                    return $job;
+                });
+            } else {
+                $jobs->map(function ($job) {
+                    $job->is_saved = false;
+                    return $job;
+                });
+            }
+
             return response()->json([
                 'status' => 'success',
                 'data' => $jobs
             ], 200);
+
         } catch (\Exception $e) {
             Log::error("Index Jobs Error: " . $e->getMessage());
             return response()->json(['message' => 'Server Error', 'error' => $e->getMessage()], 500);
@@ -54,7 +78,6 @@ class JobController extends Controller
         ]);
 
         try {
-            // Paksa eksekusi dan tangkap jika database menolak (misal Mass Assignment Exception)
             $job = Job::create([
                 'user_id' => $request->user()->id,
                 'company_name' => $request->user()->name,
@@ -71,7 +94,6 @@ class JobController extends Controller
             ], 201);
 
         } catch (\Exception $e) {
-            // INI JARING PENGAMANNYA. Jika gagal insert, catat alasannya.
             Log::error("Store Job Gagal: " . $e->getMessage());
             return response()->json([
                 'message' => 'Database Error saat menyimpan lowongan',

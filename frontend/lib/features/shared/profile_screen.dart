@@ -27,7 +27,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _skillsText = "Belum ada data skill terdaftar.";
   String _phone = "Belum ada nomor telepon.";
 
-  // File Memory (AMAN UNTUK WEB & ANDROID)
+  // File Memory
   Uint8List? _imageBytes; 
   String _resumeFileName = "Belum ada resume diunggah";
 
@@ -62,28 +62,101 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _pickAndUploadImage() async {
-    final picker = ImagePicker();
-    // Di Web, ini akan mengembalikan file virtual di memori
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+  // --- LOGIKA EDIT TEKS (DIALOG) ---
+  void _showEditProfileDialog() {
+    final TextEditingController phoneController = TextEditingController(text: _phone == "Belum ada nomor telepon." ? "" : _phone);
+    final TextEditingController skillsController = TextEditingController(text: _skillsText == "Belum ada data skill terdaftar." ? "" : _skillsText);
 
-    if (pickedFile != null) {
-      // BACA SEBAGAI BYTES (Aman untuk Chrome)
-      final bytes = await pickedFile.readAsBytes();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 20, 
+          top: 20, left: 24, right: 24
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Edit Data Diri", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 15),
+            TextField(
+              controller: phoneController, 
+              decoration: const InputDecoration(labelText: "Nomor HP", border: OutlineInputBorder()),
+              keyboardType: TextInputType.phone,
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: skillsController, 
+              decoration: const InputDecoration(labelText: "Keahlian (Skills)", border: OutlineInputBorder()), 
+              maxLines: 4,
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 15)),
+                onPressed: () async {
+                  Navigator.pop(context); // Tutup dialog dulu
+                  await _updateTextData(phoneController.text, skillsController.text);
+                },
+                child: const Text("Simpan Perubahan", style: TextStyle(fontSize: 16)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateTextData(String phone, String skills) async {
+    setState(() => _isUploading = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+
+      var request = http.MultipartRequest('POST', Uri.parse('${ApiService.baseUrl}/profile/update'));
+      request.headers.addAll({'Accept': 'application/json', 'Authorization': 'Bearer $token'});
       
+      request.fields['phone'] = phone;
+      request.fields['skills'] = skills;
+
+      var response = await request.send();
+      if (response.statusCode == 200) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Data berhasil diperbarui!'), backgroundColor: Colors.green));
+          _fetchProfileData();
+        }
+      } else {
+        throw Exception('Server menolak perubahan.');
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  // --- LOGIKA UPLOAD FILE ---
+  Future<void> _pickAndUploadImage() async {
+    final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70);
+    if (pickedFile != null) {
+      final bytes = await pickedFile.readAsBytes();
       setState(() {
         _imageBytes = bytes;
-        _photoUrl = null; // Hapus URL lama agar UI memprioritaskan foto baru
+        _photoUrl = null; 
       });
-      
       await _uploadMultipartBytes('photo', bytes, pickedFile.name);
     }
   }
 
   Future<void> _pickAndUploadResume() async {
     FilePickerResult? result =
-    await FilePicker.pickFiles( 
-      type: FileType.custom, allowedExtensions: ['pdf', 'doc', 'docx'],
+    await FilePicker.pickFiles(
+  type: FileType.custom,
+  allowedExtensions: ['pdf', 'doc', 'docx'],
       withData: true, 
     );
 
@@ -92,14 +165,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final fileName = result.files.single.name;
 
       setState(() => _resumeFileName = fileName);
-      
       await _uploadMultipartBytes('resume', bytes, fileName);
-    } else {
-      print("LOG: Batal pilih file atau gagal baca byte.");
     }
   }
 
-  // LOGIKA UPLOAD BARU (MENGGUNAKAN BYTES, BUKAN PATH FILE)
   Future<void> _uploadMultipartBytes(String fieldName, Uint8List bytes, String fileName) async {
     setState(() => _isUploading = true);
     try {
@@ -112,42 +181,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'Authorization': 'Bearer $token',
       });
 
-      // MENGGUNAKAN FROMBYTES
-      request.files.add(http.MultipartFile.fromBytes(
-        fieldName, 
-        bytes,
-        filename: fileName, 
-      ));
+      request.files.add(http.MultipartFile.fromBytes(fieldName, bytes, filename: fileName));
 
-      var streamedResponse = await request.send();
-      var response = await http.Response.fromStream(streamedResponse);
+      var response = await http.Response.fromStream(await request.send());
 
       if (response.statusCode == 200) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Berkas berhasil diunggah!'), backgroundColor: Colors.green),
-          );
-          _fetchProfileData(); // Refresh data dari server
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Berkas berhasil diunggah!'), backgroundColor: Colors.green));
+          _fetchProfileData();
         }
       } else {
-        throw Exception('Server menolak. HTTP: ${response.statusCode}');
+        throw Exception('Server HTTP: ${response.statusCode}');
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal upload: $e'), backgroundColor: Colors.red),
-        );
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal upload: $e'), backgroundColor: Colors.red));
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
   }
 
+  // --- UI BUILDER ---
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final primaryColor = theme.primaryColor;
-    
     final nickname = _userName.split(' ').first;
 
     return Scaffold(
@@ -172,7 +229,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // 1. FOTO PROFIL
+                  // 1. FOTO PROFIL (Dengan Stack & Camera Icon)
                   GestureDetector(
                     onTap: _pickAndUploadImage,
                     child: Stack(
@@ -185,7 +242,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             boxShadow: [
                               BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5)),
                             ],
-                            // MENGGUNAKAN MEMORYIMAGE UNTUK PREVIEW BYTES
                             image: _imageBytes != null
                                 ? DecorationImage(image: MemoryImage(_imageBytes!), fit: BoxFit.cover)
                                 : (_photoUrl != null
@@ -223,9 +279,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   // 3. DATA DIRI LENGKAP
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: Text("Data Diri", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textTheme.bodyLarge?.color)),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Data Diri", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textTheme.bodyLarge?.color)),
+                        // Tombol edit diletakkan di sini untuk estetika
+                        IconButton(
+                          icon: Icon(Icons.edit, color: primaryColor, size: 20),
+                          onPressed: _showEditProfileDialog,
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 5),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
@@ -256,9 +322,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Text("Keahlian (Skills)", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: theme.textTheme.bodyLarge?.color)),
                         IconButton(
                           icon: Icon(Icons.edit, color: primaryColor, size: 20),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fitur edit teks menyusul')));
-                          },
+                          onPressed: _showEditProfileDialog, // Memanggil dialog yang sama
                         ),
                       ],
                     ),
@@ -283,11 +347,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   if (_isUploading) ...[
                     const LinearProgressIndicator(),
                     const SizedBox(height: 10),
-                    const Text("Sedang memproses berkas..."),
+                    const Text("Sedang memproses data..."),
                     const SizedBox(height: 20),
                   ],
 
-                  // 5. UPLOAD RESUME
+                  // 5. UPLOAD RESUME (Desain Kotak Biru Penuh)
                   GestureDetector(
                     onTap: _pickAndUploadResume,
                     child: Container(
@@ -316,7 +380,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 40), // Spasi bawah agar tidak mentok
                 ],
               ),
             ),

@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS `applications` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `job_id` bigint unsigned NOT NULL,
   `user_id` bigint unsigned NOT NULL,
+  `resume_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `status` enum('pending','reviewed','accepted','rejected') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
@@ -32,7 +33,7 @@ CREATE TABLE IF NOT EXISTS `applications` (
   KEY `applications_user_id_foreign` (`user_id`),
   CONSTRAINT `applications_job_id_foreign` FOREIGN KEY (`job_id`) REFERENCES `jobs` (`id`) ON DELETE CASCADE,
   CONSTRAINT `applications_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Pengeluaran data tidak dipilih.
 
@@ -58,6 +59,24 @@ CREATE TABLE IF NOT EXISTS `cache_locks` (
 
 -- Pengeluaran data tidak dipilih.
 
+-- membuang struktur untuk table db_gawee.company_profiles
+CREATE TABLE IF NOT EXISTS `company_profiles` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint unsigned NOT NULL,
+  `company_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `industry` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `location` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `description` text COLLATE utf8mb4_unicode_ci,
+  `website` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `company_profiles_user_id_foreign` (`user_id`),
+  CONSTRAINT `company_profiles_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Pengeluaran data tidak dipilih.
+
 -- membuang struktur untuk table db_gawee.jobs
 CREATE TABLE IF NOT EXISTS `jobs` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -73,7 +92,25 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   PRIMARY KEY (`id`),
   KEY `jobs_user_id_foreign` (`user_id`),
   CONSTRAINT `jobs_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Pengeluaran data tidak dipilih.
+
+-- membuang struktur untuk table db_gawee.job_applications
+CREATE TABLE IF NOT EXISTS `job_applications` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `job_id` bigint unsigned NOT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `resume_url` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `status` enum('pending','reviewed','accepted','rejected') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `job_applications_job_id_user_id_unique` (`job_id`,`user_id`),
+  KEY `job_applications_user_id_foreign` (`user_id`),
+  CONSTRAINT `job_applications_job_id_foreign` FOREIGN KEY (`job_id`) REFERENCES `jobs` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `job_applications_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Pengeluaran data tidak dipilih.
 
@@ -83,7 +120,23 @@ CREATE TABLE IF NOT EXISTS `migrations` (
   `migration` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `batch` int NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Pengeluaran data tidak dipilih.
+
+-- membuang struktur untuk table db_gawee.notifications
+CREATE TABLE IF NOT EXISTS `notifications` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint unsigned NOT NULL,
+  `title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `message` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `is_read` tinyint(1) NOT NULL DEFAULT '0',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `notifications_user_id_foreign` (`user_id`),
+  CONSTRAINT `notifications_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Pengeluaran data tidak dipilih.
 
@@ -113,7 +166,7 @@ CREATE TABLE IF NOT EXISTS `personal_access_tokens` (
   UNIQUE KEY `personal_access_tokens_token_unique` (`token`),
   KEY `personal_access_tokens_tokenable_type_tokenable_id_index` (`tokenable_type`,`tokenable_id`),
   KEY `personal_access_tokens_expires_at_index` (`expires_at`)
-) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=47 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Pengeluaran data tidak dipilih.
 
@@ -133,6 +186,22 @@ CREATE TABLE IF NOT EXISTS `resumes` (
 
 -- Pengeluaran data tidak dipilih.
 
+-- membuang struktur untuk table db_gawee.saved_jobs
+CREATE TABLE IF NOT EXISTS `saved_jobs` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint unsigned NOT NULL,
+  `job_id` bigint unsigned NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `saved_jobs_user_id_job_id_unique` (`user_id`,`job_id`),
+  KEY `saved_jobs_job_id_foreign` (`job_id`),
+  CONSTRAINT `saved_jobs_job_id_foreign` FOREIGN KEY (`job_id`) REFERENCES `jobs` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `saved_jobs_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Pengeluaran data tidak dipilih.
+
 -- membuang struktur untuk table db_gawee.seeker_profiles
 CREATE TABLE IF NOT EXISTS `seeker_profiles` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -146,7 +215,7 @@ CREATE TABLE IF NOT EXISTS `seeker_profiles` (
   PRIMARY KEY (`id`),
   KEY `seeker_profiles_user_id_foreign` (`user_id`),
   CONSTRAINT `seeker_profiles_user_id_foreign` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Pengeluaran data tidak dipilih.
 
@@ -178,7 +247,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `users_email_unique` (`email`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Pengeluaran data tidak dipilih.
 

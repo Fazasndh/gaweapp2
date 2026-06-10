@@ -32,6 +32,10 @@ class User extends Authenticatable
     }
     public function seekerProfile()
     {
-        return $this->hasOne(SeekerProfile::class);
+        return $this->hasOne(SeekerProfile::class, 'user_id', 'id');
     }
+    public function companyProfile()
+{
+    return $this->hasOne(CompanyProfile::class);
+}
 }
